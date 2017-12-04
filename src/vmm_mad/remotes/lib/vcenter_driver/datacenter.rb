@@ -320,47 +320,49 @@ class DatacenterFolder
         network_objects = {}
         vcenter_uuid = get_vcenter_instance_uuid
 
-        pc = @vi_client.vim.serviceContent.propertyCollector
-
-        #Get all port groups and distributed port groups in vcenter instance
-        view = @vi_client.vim.serviceContent.viewManager.CreateContainerView({
-                container: @vi_client.vim.rootFolder,
-                type:      ['Network','DistributedVirtualPortgroup'],
-                recursive: true
-        })
-
-        filterSpec = RbVmomi::VIM.PropertyFilterSpec(
-            :objectSet => [
-                :obj => view,
-                :skip => true,
-                :selectSet => [
-                RbVmomi::VIM.TraversalSpec(
-                    :name => 'traverseEntities',
-                    :type => 'ContainerView',
-                    :path => 'view',
-                    :skip => false
-                )
-                ]
-            ],
-            :propSet => [
-                { :type => 'Network', :pathSet => ['name'] },
-                { :type => 'DistributedVirtualPortgroup', :pathSet => ['name'] }
-            ]
-        )
-
-        result = pc.RetrieveProperties(:specSet => [filterSpec])
-
-        networks = {}
-        result.each do |r|
-            networks[r.obj._ref] = r.to_hash if r.obj.is_a?(RbVmomi::VIM::DistributedVirtualPortgroup) || r.obj.is_a?(RbVmomi::VIM::Network)
-            networks[r.obj._ref][:network_type] = r.obj.is_a?(RbVmomi::VIM::DistributedVirtualPortgroup) ? "Distributed Port Group" : "Port Group"
-        end
-
-        view.DestroyView # Destroy the view
 
         fetch! if @items.empty? #Get datacenters
 
         @items.values.each do |dc|
+
+            pc = @vi_client.vim.serviceContent.propertyCollector
+
+            #Get all port groups and distributed port groups in vcenter instance
+            view = @vi_client.vim.serviceContent.viewManager.CreateContainerView({
+                    container: dc.item,
+                    type:      ['Network','DistributedVirtualPortgroup'],
+                    recursive: true
+            })
+
+            filterSpec = RbVmomi::VIM.PropertyFilterSpec(
+                :objectSet => [
+                    :obj => view,
+                    :skip => true,
+                    :selectSet => [
+                    RbVmomi::VIM.TraversalSpec(
+                        :name => 'traverseEntities',
+                        :type => 'ContainerView',
+                        :path => 'view',
+                        :skip => false
+                    )
+                    ]
+                ],
+                :propSet => [
+                    { :type => 'Network', :pathSet => ['name'] },
+                    { :type => 'DistributedVirtualPortgroup', :pathSet => ['name'] }
+                ]
+            )
+
+            result = pc.RetrieveProperties(:specSet => [filterSpec])
+
+            networks = {}
+            result.each do |r|
+                networks[r.obj._ref] = r.to_hash if r.obj.is_a?(RbVmomi::VIM::DistributedVirtualPortgroup) || r.obj.is_a?(RbVmomi::VIM::Network)
+                networks[r.obj._ref][:network_type] = r.obj.is_a?(RbVmomi::VIM::DistributedVirtualPortgroup) ? "Distributed Port Group" : "Port Group"
+                networks[r.obj._ref][:clusters] = []
+            end
+
+            view.DestroyView # Destroy the view
 
             dc_name = dc.item.name
             network_objects[dc_name] = []
@@ -434,6 +436,10 @@ class DatacenterFolder
 
                 network_obj.each do |n|
                     network_ref  = n._ref
+                    networks[network_ref][:clusters] << ref
+
+                    next if networks[network_ref][:clusters].size > 1
+
                     network_name = networks[network_ref]['name']
                     network_type = networks[network_ref][:network_type]
 
@@ -443,7 +449,9 @@ class DatacenterFolder
                                                                     vcenter_uuid,
                                                                     npool,
                                                                     false)
+
                     next if one_network #If the network has been already imported
+
 
                     one_vnet = VCenterDriver::Network.to_one_template(network_name,
                                                                       network_ref,
