@@ -43,6 +43,25 @@ class DatacenterFolder
         @vi_client.vim.serviceContent.about.apiVersion
     end
 
+    def get_location(object)
+        item = object.item
+        folders = []
+        while !item.instance_of? RbVmomi::VIM::Datacenter
+            item = item.parent
+            if !item.instance_of? RbVmomi::VIM::Datacenter
+                folders << item.name if item.name != "host"
+            end
+
+            if item.nil?
+                raise "Could not find the host's location"
+            end
+        end
+
+        location = folders.reverse.join("/")
+        location = "/" if location.empty?
+	end
+
+
     def get_unimported_hosts(hpool, vcenter_instance_name)
         host_objects = {}
 
@@ -322,7 +341,7 @@ class DatacenterFolder
 
         #Get all port groups and distributed port groups in vcenter instance
         view = @vi_client.vim.serviceContent.viewManager.CreateContainerView({
-            container: @vi_client.vim.rootFolder,
+                container: @vi_client.vim.rootFolder,
                 type:      ['Network','DistributedVirtualPortgroup'],
                 recursive: true
         })
@@ -345,25 +364,22 @@ class DatacenterFolder
                 { :type => 'DistributedVirtualPortgroup', :pathSet => ['name'] }
             ]
         )
-
         result = pc.RetrieveProperties(:specSet => [filterSpec])
 
         networks = {}
         result.each do |r|
             networks[r.obj._ref] = r.to_hash if r.obj.is_a?(RbVmomi::VIM::DistributedVirtualPortgroup) || r.obj.is_a?(RbVmomi::VIM::Network)
             networks[r.obj._ref][:network_type] = r.obj.is_a?(RbVmomi::VIM::DistributedVirtualPortgroup) ? "Distributed Port Group" : "Port Group"
-
             networks[r.obj._ref][:clusters] = {}
-            networks[r.obj._ref][:clusters][:names] = []
             networks[r.obj._ref][:clusters][:refs] = []
+            networks[r.obj._ref][:clusters][:names] = []
             networks[r.obj._ref][:clusters][:one_ids] = []
             networks[r.obj._ref][:clusters][:locations] = []
         end
-
         view.DestroyView # Destroy the view
 
-
-        fetch! if @items.empty? #Get datacenters
+        #Get datacenters
+        fetch! if @items.empty?
 
         #Iterate over datacenters
         @items.values.each do |dc|
@@ -409,7 +425,6 @@ class DatacenterFolder
                                                                ref,
                                                                vcenter_uuid,
                                                                hpool)
-                next if !one_host || !one_host['CLUSTER_ID']
 
                 if !one_host || !one_host['CLUSTER_ID']
                     cluster_id = -1
@@ -418,23 +433,7 @@ class DatacenterFolder
                 end
 
                 one_cluster = VCenterDriver::ClusterComputeResource.new_from_ref(ref, @vi_client)
-
-                # Determine a host location
-                item = one_cluster.item
-                folders = []
-                while !item.instance_of? RbVmomi::VIM::Datacenter
-                    item = item.parent
-                    if !item.instance_of? RbVmomi::VIM::Datacenter
-                        folders << item.name if item.name != "host"
-                    end
-
-                    if item.nil?
-                        raise "Could not find the host's location"
-                    end
-                end
-
-                location = folders.reverse.join("/")
-                location = "/" if location.empty?
+                location = get_location(one_cluster)
 
                 network_obj = info['network']
                 cname = info['name']
@@ -442,53 +441,63 @@ class DatacenterFolder
                 network_obj.each do |n|
                     network_ref  = n._ref
 
-                    if networks[network_ref][:network_type] == "Distributed Port Group"
-                        networks[network_ref][:clusters][:refs] << ref
-                        networks[network_ref][:clusters][:names] << cname
-                        networks[network_ref][:clusters][:one_ids] << cluster_id
-                        networks[network_ref][:clusters][:locations] << location
-                    end
+                    # network can belong to more than 1 cluster
+                    networks[network_ref][:clusters][:refs] << ref
+                    networks[network_ref][:clusters][:names] << cname
+                    networks[network_ref][:clusters][:one_ids] << cluster_id
+                    networks[network_ref][:clusters][:locations] << location
 
                     next if networks[network_ref][:clusters][:refs].size > 1
 
-                    # Is the first net:
-                    networks[network_ref][:ccr] = ref
-                    networks[network_ref][:ccr_name] = cname
+                    # Is the first and first time net:
                     networks[network_ref][:one_net] = VCenterDriver::VIHelper.find_by_ref(OpenNebula::VirtualNetworkPool,
                                                                     "TEMPLATE/VCENTER_NET_REF",
                                                                     network_ref,
                                                                     vcenter_uuid,
                                                                     npool,
                                                                     false)
-                end
+                end #networks loop
 
-            end # network loop
+            end #clusters loop
 
             networks.each do |nref, net_info|
-                next if net_info[:one_net]
+                next if net_info[:one_net] || net_info[:clusters][:refs].size < 1
 
-                network_name = net_info['name']
-                network_type = net_info[:network_type]
                 clusters = net_info[:clusters]
+                if net_info[:network_type] == "Port Group" && clusters[:refs].size > 1
+                    for i in 1..(clusters[:refs].size-1)
+                        one_vnet = VCenterDriver::Network.to_one_template(net_info['name'],
+                                                                          nref,
+                                                                          net_info[:network_type],
+                                                                          clusters[:refs][i],
+                                                                          clusters[:names][i],
+                                                                          vcenter_uuid,
+                                                                          vcenter_instance_name,
+                                                                          dc_name,
+                                                                          clusters[:one_ids][i],
+                                                                          clusters[:locations][i],
+                                                                          nil, nil, nil, nil, nil, clusters)
+                        network_objects[dc_name] << one_vnet
+                    end
+                end
 
-                one_vnet = VCenterDriver::Network.to_one_template(network_name,
+                one_vnet = VCenterDriver::Network.to_one_template(net_info['name'],
                                                                   nref,
-                                                                  network_type,
-                                                                  net_info[:ccr],
-                                                                  net_info[:ccr_name],
+                                                                  net_info[:network_type],
+                                                                  clusters[:refs][0],
+                                                                  clusters[:names][0],
                                                                   vcenter_uuid,
                                                                   vcenter_instance_name,
                                                                   dc_name,
-                                                                  -1,
-                                                                  "/",
-                                                                  net_info[:clusters])
+                                                                  clusters[:one_ids][0],
+                                                                  clusters[:locations][0],
+                                                                  nil, nil, nil, nil, nil, clusters)
                 network_objects[dc_name] << one_vnet
-            end
 
-        end #datacenters loop
+            end
+        end # datacenters loop
 
         return network_objects
-
     end
 
 end # class DatatacenterFolder
