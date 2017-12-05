@@ -96,7 +96,7 @@ class Network
                              vcenter_instance_name, dc_name, cluster_id,
                              cluster_location,
                              unmanaged=nil, template_ref=nil, dc_ref=nil,
-                             vm_or_template_name=nil, template_id=nil)
+                             vm_or_template_name=nil, template_id=nil, clusters = nil)
 
         one_tmp = {}
 
@@ -114,6 +114,7 @@ class Network
         one_tmp[:vcenter_ccr_ref]  = ccr_ref
         one_tmp[:one_cluster_id]   = cluster_id
         one_tmp[:vcenter_net_ref]  = network_ref
+        one_tmp[:clusters] = clusters
 
         one_tmp[:one] = to_one(network_import_name, network_name, network_ref, network_type,
                              ccr_ref, vcenter_uuid, unmanaged, template_ref, dc_ref, template_id)
