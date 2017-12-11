@@ -475,7 +475,6 @@ class DatacenterFolder
                 opts[:network_name]       = net_info['name']
                 opts[:network_ref]        = nref
                 opts[:network_type]       = net_info[:network_type]
-                opts[:clusters]           = clusters
 
                 #duplicated normal net in more than 1 cluster
                 if net_info[:network_type] == "Port Group" && clusters[:refs].size > 1
@@ -489,6 +488,7 @@ class DatacenterFolder
                 end
 
                 #the first cluster or nclusters = 0
+                opts[:clusters]      = clusters if net_info[:network_type] == "Distributed Port Group"
                 opts[:ccr_ref]       = clusters[:refs][0]
                 opts[:ccr_name]      = clusters[:names][0]
                 opts[:cluster_id]    = clusters[:one_ids][0]

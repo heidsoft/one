@@ -1,5 +1,4 @@
 module VCenterDriver
-
 class Importer
 
 VNC_ESX_HOST_FOLDER = "/tmp"
@@ -643,19 +642,45 @@ def self.import_networks(con_ops, options)
                     print_str =  "\n  * Network found:\n"\
                                  "      - Name                  : \e[92m#{n[:name]}\e[39m\n"\
                                  "      - Type                  : #{n[:type]}\n"\
-                                 "      - Cluster               : \e[96m#{n[:cluster]}\e[39m\n"\
-                                 "      - Cluster location      : #{n[:cluster_location]}\n"\
-                                 "      - OpenNebula Cluster ID : #{n[:one_cluster_id]}\n"
+                                 "      - Clusters              : "
 
-                    if n[:one_cluster_id] == -1
-                        print_str << "You need to import the associated vcenter cluster as one host first!"
+                    if (n[:clusters]) #Distributed port group
+                        ids = ""
+                        import = false
+                        message = true
+
+                        for i in 0..(n[:clusters][:refs].size-1)
+                            cond = (n[:clusters][:one_ids][i]) != -1
+                            message = message && cond
+                            if (cond)
+                                import = true
+                                print_str << "\e[96m#{n[:clusters][:names][i]}\e[39m "
+                                ids << "\e[96m#{n[:clusters][:one_ids][i]}\e[39m "
+                            else
+                                print_str << "\e[91m#{n[:clusters][:names][i]}\e[39m "
+                            end
+                        end
+
+                        print_str << "\n     - OpenNebula Cluster IDs : #{ids}\n"
+
+                    else #normal network
+                         import = n[:one_cluster_id] != -1
+                         if import
+                            print_str << "\e[96m#{n[:cluster]}\e[39m\n"
+                            print_str << "      - OpenNebula Cluster ID : \e[96m#{n[:one_cluster_id]}\e[39m\n"
+                         else
+                            print_str << "\e[91m#{n[:cluster]}\e[39m\n"
+                         end
+                    end
+
+                    if !import
+                        print_str << "    You need to at least 1 vcenter cluster as one host first!"
                     else
                         print_str << "    Import this Network (y/[n])? "
                     end
 
                     STDOUT.print print_str
-
-                    next if STDIN.gets.strip.downcase != 'y' || n[:one_cluster_id] == -1
+                    next if STDIN.gets.strip.downcase != 'y' || !import
                 end
 
                 # we try to retrieve once we know the desired net
