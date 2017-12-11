@@ -470,32 +470,32 @@ class DatacenterFolder
             networks.each do |nref, net_info|
                 next if net_info[:one_net] || net_info[:clusters][:refs].size < 1
 
-                #net_info
                 clusters = net_info[:clusters]
                 opts[:network_name]       = net_info['name']
                 opts[:network_ref]        = nref
                 opts[:network_type]       = net_info[:network_type]
 
-                #duplicated normal net in more than 1 cluster
-                if net_info[:network_type] == "Port Group" && clusters[:refs].size > 1
-                    for i in 1..(clusters[:refs].size-1)
+                if net_info[:network_type] == "Port Group"
+                    for i in 0..(clusters[:refs].size-1)
                         opts[:ccr_ref]       = clusters[:refs][i]
                         opts[:ccr_name]      = clusters[:names][i]
                         opts[:cluster_id]    = clusters[:one_ids][i]
                         opts[:location]      = clusters[:locations][i]
                         network_objects[dc_name] << VCenterDriver::Network.to_one_template_aux(opts)
                     end
+                else
+                    index = 0
+                    index +=1 while ((clusters[:refs][index] == -1) && (index < clusters[:refs].size-1))
+
+                    opts[:clusters]      = clusters
+                    opts[:ccr_ref]       = clusters[:refs][index]
+                    opts[:ccr_name]      = clusters[:names][index]
+                    opts[:cluster_id]    = clusters[:one_ids][index]
+                    opts[:location]      = clusters[:locations][index]
+                    network_objects[dc_name] << VCenterDriver::Network.to_one_template_aux(opts)
                 end
-
-                #the first cluster or nclusters = 0
-                opts[:clusters]      = clusters if net_info[:network_type] == "Distributed Port Group"
-                opts[:ccr_ref]       = clusters[:refs][0]
-                opts[:ccr_name]      = clusters[:names][0]
-                opts[:cluster_id]    = clusters[:one_ids][0]
-                opts[:location]      = clusters[:locations][0]
-                network_objects[dc_name] << VCenterDriver::Network.to_one_template_aux(opts)
-
             end
+
         end # datacenters loop
 
         return network_objects

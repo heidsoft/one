@@ -639,44 +639,41 @@ def self.import_networks(con_ops, options)
 
             tmps.each do |n|
                 if !use_defaults
+                    message = false
                     print_str =  "\n  * Network found:\n"\
-                                 "      - Name                  : \e[92m#{n[:name]}\e[39m\n"\
-                                 "      - Type                  : #{n[:type]}\n"\
-                                 "      - Clusters              : "
+                                 "      - Name                     : \e[92m#{n[:name]}\e[39m\n"\
+                                 "      - Type                     : #{n[:type]}\n"\
+                                 "      - Vcenter Clusters(host id): "
 
                     if (n[:clusters]) #Distributed port group
-                        ids = ""
+                        unimported = ""
                         import = false
-                        message = true
 
                         for i in 0..(n[:clusters][:refs].size-1)
-                            cond = (n[:clusters][:one_ids][i]) != -1
-                            message = message && cond
-                            if (cond)
+                            if n[:clusters][:one_ids][i] != -1
                                 import = true
-                                print_str << "\e[96m#{n[:clusters][:names][i]}\e[39m "
-                                ids << "\e[96m#{n[:clusters][:one_ids][i]}\e[39m "
+                                print_str << "\e[96m#{n[:clusters][:names][i]}(#{n[:clusters][:one_ids][i]})\e[39m "
                             else
+                                message = true
                                 print_str << "\e[91m#{n[:clusters][:names][i]}\e[39m "
+                                unimported << "#{n[:clusters][:names][i]} "
                             end
                         end
-
-                        print_str << "\n     - OpenNebula Cluster IDs : #{ids}\n"
 
                     else #normal network
                          import = n[:one_cluster_id] != -1
                          if import
-                            print_str << "\e[96m#{n[:cluster]}\e[39m\n"
-                            print_str << "      - OpenNebula Cluster ID : \e[96m#{n[:one_cluster_id]}\e[39m\n"
+                            print_str << "\e[96m#{n[:cluster]}(#{n[:one_cluster_id]})\e[39m\n"
                          else
-                            print_str << "\e[91m#{n[:cluster]}\e[39m\n"
+                            print_str << "\e[91m#{n[:cluster]}\e[39m"
                          end
                     end
 
+
                     if !import
-                        print_str << "    You need to at least 1 vcenter cluster as one host first!"
+                        print_str << "\n    You need to at least 1 vcenter cluster as one host first!"
                     else
-                        print_str << "    Import this Network (y/[n])? "
+                        print_str << "\n    Import this Network (y/[n])? "
                     end
 
                     STDOUT.print print_str
@@ -707,6 +704,11 @@ def self.import_networks(con_ops, options)
                 ula_prefix=nil
                 ip6_address = nil
                 prefix_length = nil
+
+                if !use_defaults && message
+                    STDOUT.print "\n\e[93mWarning: you have unimported clusters for this network: #{unimported}\n"\
+                                 "cancel this process(ctrl-C) if you want to import them first\e[39m\n\n"
+                end
 
                 # Size
                 if !use_defaults
@@ -812,8 +814,25 @@ def self.import_networks(con_ops, options)
                 n[:one] << ar_str
 
                 one_vn = VCenterDriver::VIHelper.new_one_item(OpenNebula::VirtualNetwork)
+                if n[:clusters] #Distributed Port Group
+                    done = []
+                    for i in 0..n[:clusters][:refs].size-1
+                        cl_id = n[:clusters][:one_ids][i]
+                        next if cl_id == -1 || done.include?(cl_id)
 
-                rc = one_vn.allocate(n[:one],n[:one_cluster_id].to_i)
+                        if done.empty?
+                            rc = one_vn.allocate(n[:one],cl_id.to_i)
+                            one_vn.info
+                        else
+                            one_cluster = VCenterDriver::VIHelper.one_item(OpenNebula::Cluster, cl_id, false)
+                            rc = one_cluster.addvnet(one_vn['ID'].to_i)
+                        end
+                        done << cl_id
+                    end
+
+                else #Standard Port group
+                    rc = one_vn.allocate(n[:one],n[:one_cluster_id].to_i)
+                end
 
                 if ::OpenNebula.is_error?(rc)
                     STDOUT.puts "\n    Error creating virtual network: " +
