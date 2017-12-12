@@ -43,25 +43,6 @@ class DatacenterFolder
         @vi_client.vim.serviceContent.about.apiVersion
     end
 
-    def get_location(object)
-        item = object.item
-        folders = []
-        while !item.instance_of? RbVmomi::VIM::Datacenter
-            item = item.parent
-            if !item.instance_of? RbVmomi::VIM::Datacenter
-                folders << item.name if item.name != "host"
-            end
-
-            if item.nil?
-                raise "Could not find the host's location"
-            end
-        end
-
-        location = folders.reverse.join("/")
-        location = "/" if location.empty?
-	end
-
-
     def get_unimported_hosts(hpool, vcenter_instance_name)
         host_objects = {}
 
@@ -435,7 +416,7 @@ class DatacenterFolder
                 end
 
                 one_cluster = VCenterDriver::ClusterComputeResource.new_from_ref(ref, @vi_client)
-                location = get_location(one_cluster)
+                location = VCenterDriver::VIHelper.get_location(one_cluster.item)
 
                 network_obj = info['network']
                 cname = info['name']
@@ -481,7 +462,7 @@ class DatacenterFolder
                         opts[:ccr_name]      = clusters[:names][i]
                         opts[:cluster_id]    = clusters[:one_ids][i]
                         opts[:location]      = clusters[:locations][i]
-                        network_objects[dc_name] << VCenterDriver::Network.to_one_template_aux(opts)
+                        network_objects[dc_name] << VCenterDriver::Network.to_one_template(opts)
                     end
                 else
                     index = 0
@@ -492,7 +473,7 @@ class DatacenterFolder
                     opts[:ccr_name]      = clusters[:names][index]
                     opts[:cluster_id]    = clusters[:one_ids][index]
                     opts[:location]      = clusters[:locations][index]
-                    network_objects[dc_name] << VCenterDriver::Network.to_one_template_aux(opts)
+                    network_objects[dc_name] << VCenterDriver::Network.to_one_template(opts)
                 end
             end
 

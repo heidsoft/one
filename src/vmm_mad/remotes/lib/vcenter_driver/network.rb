@@ -91,37 +91,7 @@ class Network
         return id
     end
 
-    def self.to_one_template(network_name, network_ref, network_type,
-                             ccr_ref, ccr_name, vcenter_uuid,
-                             vcenter_instance_name, dc_name, cluster_id,
-                             cluster_location,
-                             unmanaged=nil, template_ref=nil, dc_ref=nil,
-                             vm_or_template_name=nil, template_id=nil, clusters = nil)
-
-        one_tmp = {}
-
-        hash_name = "#{network_name} - #{ccr_name.tr(" ", "_")} [#{vcenter_instance_name} - #{dc_name}]_#{cluster_location}"
-        sha256 = Digest::SHA256.new
-        network_hash = sha256.hexdigest(hash_name)[0..11]
-        network_import_name = "#{network_name} - #{ccr_name.tr(" ", "_")} [#{vcenter_instance_name} - #{dc_name}]_#{network_hash}"
-
-        one_tmp[:name]             = network_name
-        one_tmp[:import_name]      = network_import_name
-        one_tmp[:bridge]           = network_name
-        one_tmp[:type]             = network_type
-        one_tmp[:cluster]          = ccr_name
-        one_tmp[:cluster_location] = cluster_location
-        one_tmp[:vcenter_ccr_ref]  = ccr_ref
-        one_tmp[:one_cluster_id]   = cluster_id
-        one_tmp[:vcenter_net_ref]  = network_ref
-        one_tmp[:clusters] = clusters
-
-        one_tmp[:one] = to_one(network_import_name, network_name, network_ref, network_type,
-                             ccr_ref, vcenter_uuid, unmanaged, template_ref, dc_ref, template_id)
-        return one_tmp
-    end
-
-    def self.to_one_template_aux(opts = {})
+    def self.to_one_template(opts = {})
 
         one_tmp = {}
         network_name          = opts[:network_name]
@@ -140,11 +110,6 @@ class Network
         dc_ref                = opts[:dc_ref] || nil
         vm_or_template_name   = opts[:vm_or_template_name] || nil
         template_id           = opts[:template_id] || nil
-
-
-
-
-
 
         hash_name = "#{network_name} - #{ccr_name.tr(" ", "_")} [#{vcenter_instance_name} - #{dc_name}]_#{cluster_location}"
         sha256 = Digest::SHA256.new
