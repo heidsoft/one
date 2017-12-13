@@ -645,30 +645,19 @@ def self.import_networks(con_ops, options)
                                  "      - Type                     : #{n[:type]}\n"\
                                  "      - Vcenter Clusters(host id): "
 
-                    if (n[:clusters]) #Distributed port group
-                        unimported = ""
-                        import = false
+                    unimported = ""
+                    import = false
 
-                        for i in 0..(n[:clusters][:refs].size-1)
-                            if n[:clusters][:one_ids][i] != -1
-                                import = true
-                                print_str << "\e[96m#{n[:clusters][:names][i]}(#{n[:clusters][:one_ids][i]})\e[39m "
-                            else
-                                message = true
-                                print_str << "\e[91m#{n[:clusters][:names][i]}\e[39m "
-                                unimported << "#{n[:clusters][:names][i]} "
-                            end
+                    for i in 0..(n[:clusters][:refs].size-1)
+                        if n[:clusters][:one_ids][i] != -1
+                            import = true
+                            print_str << "\e[96m#{n[:clusters][:names][i]}(#{n[:clusters][:one_ids][i]})\e[39m "
+                        else
+                            message = true
+                            print_str << "\e[91m#{n[:clusters][:names][i]}\e[39m "
+                            unimported << "#{n[:clusters][:names][i]} "
                         end
-
-                    else #normal network
-                         import = n[:one_cluster_id] != -1
-                         if import
-                            print_str << "\e[96m#{n[:cluster]}(#{n[:one_cluster_id]})\e[39m\n"
-                         else
-                            print_str << "\e[91m#{n[:cluster]}\e[39m"
-                         end
                     end
-
 
                     if !import
                         print_str << "\n    You need to at least 1 vcenter cluster as one host first!"
@@ -829,9 +818,6 @@ def self.import_networks(con_ops, options)
                         end
                         done << cl_id
                     end
-
-                else #Standard Port group
-                    rc = one_vn.allocate(n[:one],n[:one_cluster_id].to_i)
                 end
 
                 if ::OpenNebula.is_error?(rc)
