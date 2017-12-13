@@ -355,9 +355,8 @@ class DatacenterFolder
             #Multicluster nets support
             networks[r.obj._ref][:clusters] = {}
             networks[r.obj._ref][:clusters][:refs] = []
-            networks[r.obj._ref][:clusters][:names] = []
             networks[r.obj._ref][:clusters][:one_ids] = []
-            networks[r.obj._ref][:clusters][:locations] = []
+            networks[r.obj._ref][:clusters][:names] = []
         end
         view.DestroyView # Destroy the view
 
@@ -426,9 +425,8 @@ class DatacenterFolder
 
                     # network can belong to more than 1 cluster
                     networks[network_ref][:clusters][:refs] << ref
-                    networks[network_ref][:clusters][:names] << cname
                     networks[network_ref][:clusters][:one_ids] << cluster_id
-                    networks[network_ref][:clusters][:locations] << location
+                    networks[network_ref][:cluster][:names] << cname
 
                     next if networks[network_ref][:clusters][:refs].size > 1
 
@@ -442,7 +440,7 @@ class DatacenterFolder
                 end #networks loop
             end #clusters loop
 
-            #general net_info
+            #general net_info related to datacenter
             opts = {}
             opts[:vcenter_uuid]           = vcenter_uuid
             opts[:vcenter_instance_name]  = vcenter_instance_name
@@ -451,20 +449,11 @@ class DatacenterFolder
             networks.each do |nref, net_info|
                 next if net_info[:one_net] || net_info[:clusters][:refs].size < 1
 
-                index = 0
-                clusters = opts[:clusters] = net_info[:clusters]
+                opts[:clusters]     = net_info[:clusters]
                 opts[:network_name] = net_info['name']
                 opts[:network_ref]  = nref
                 opts[:network_type] = net_info[:network_type]
 
-                #Search for any imported cluster
-                index +=1 while ((clusters[:refs][index] == -1) && (index < clusters[:refs].size-1))
-
-                opts[:clusters]      = clusters
-                opts[:ccr_ref]       = clusters[:refs][index]
-                opts[:ccr_name]      = clusters[:names][index]
-                opts[:cluster_id]    = clusters[:one_ids][index]
-                opts[:location]      = clusters[:locations][index]
                 network_objects[dc_name] << VCenterDriver::Network.to_one_template(opts)
             end
 
