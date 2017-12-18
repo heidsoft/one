@@ -426,7 +426,7 @@ class DatacenterFolder
                     # network can belong to more than 1 cluster
                     networks[network_ref][:clusters][:refs] << ref
                     networks[network_ref][:clusters][:one_ids] << cluster_id
-                    networks[network_ref][:cluster][:names] << cname
+                    networks[network_ref][:clusters][:names] << cname
 
                     next if networks[network_ref][:clusters][:refs].size > 1
 

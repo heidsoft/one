@@ -91,6 +91,17 @@ class Network
         return id
     end
 
+
+    def self.generate_name(name, opts = {})
+        vcenter_instance_name = opts[:vcenter_name] || nil
+        dc_name               = opts[:dc_name] || nil
+
+        hash_name = "#{name} - [#{vcenter_instance_name} - #{dc_name}]"
+        sha256 = Digest::SHA256.new
+        network_hash = sha256.hexdigest(hash_name)[0..11]
+        network_import_name = "#{name} - [#{vcenter_instance_name} - #{dc_name}]_#{network_hash}"
+    end
+
     def self.to_one_template(opts = {})
 
         one_tmp = {}
@@ -109,10 +120,7 @@ class Network
         vm_or_template_name   = opts[:vm_or_template_name] || nil
         template_id           = opts[:template_id] || nil
 
-        hash_name = "#{network_name} - [#{vcenter_instance_name} - #{dc_name}]"
-        sha256 = Digest::SHA256.new
-        network_hash = sha256.hexdigest(hash_name)[0..11]
-        network_import_name = "#{network_name} - [#{vcenter_instance_name} - #{dc_name}]_#{network_hash}"
+        network_import_name = generate_name(network_name, {:vcenter_name=>vcenter_instance_name, :dc_name=>dc_name})
 
         one_tmp[:name]             = network_name
         one_tmp[:import_name]      = network_import_name
